@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: threat-intel-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 2 --bind 0.0.0.0:$PORT --timeout 120
+    envVars:
+      - key: DB_PATH
+        value: /opt/render/project/src/threat_intel.db
+    disk:
+      name: db-storage
+      mountPath: /opt/render/project/src
+      sizeGB: 1
