@@ -56,7 +56,6 @@ def get_cves():
     keyword  = request.args.get("q")
     limit    = min(int(request.args.get("limit", 50)), 200)
     offset   = int(request.args.get("offset", 0))
-
     rows, total = db.query_cves(severity=severity, keyword=keyword, limit=limit, offset=offset)
     return jsonify({"data": rows, "total": total, "limit": limit, "offset": offset})
 
@@ -77,8 +76,7 @@ def get_cve(cve_id):
 
 @app.get("/api/attack/heatmap")
 def get_heatmap():
-    data = db.heatmap_data()
-    return jsonify(data)
+    return jsonify(db.heatmap_data())
 
 @app.get("/api/attack/techniques")
 def get_techniques():
@@ -124,7 +122,7 @@ def get_status():
 def health():
     return jsonify({"status": "ok"})
 
-# ── Startup ────────────────────────────────────────────────────────────────────
+# ── Startup — runs under both gunicorn and python app.py ──────────────────────
 
 def start_scheduler():
     scheduler = BackgroundScheduler()
@@ -133,14 +131,15 @@ def start_scheduler():
     scheduler.start()
     logger.info("Scheduler started (NVD every 6h, ATT&CK every 24h)")
 
+# This runs at import time — works with both gunicorn and direct execution
+db.init_db()
+_initial_status = db.get_refresh_log()
+if not _initial_status:
+    logger.info("Empty DB detected — running initial data fetch...")
+    _thread = threading.Thread(target=refresh_all)
+    _thread.daemon = True
+    _thread.start()
+start_scheduler()
+
 if __name__ == "__main__":
-    db.init_db()
-    # Seed data on first run if DB is empty
-    status = db.get_refresh_log()
-    if not status:
-        logger.info("Empty DB detected — running initial data fetch...")
-        thread = threading.Thread(target=refresh_all)
-        thread.daemon = True
-        thread.start()
-    start_scheduler()
     app.run(host="0.0.0.0", port=5000, debug=False)
